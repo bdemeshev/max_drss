@@ -3,6 +3,7 @@ title: "Выбор сложности модели через максимиза
 author: "Борис Демешев"
 date: "14 мая 2015"
 output:
+  slidy_presentation: default
   ioslides_presentation:
     keep_md: yes
 lang: russian
@@ -92,9 +93,92 @@ $n+1$. Проделав шаги 2-$n$ для разных $\lambda$, выбер
 
 ## Численный пример
 
+```{r, include=FALSE}
+library("dplyr")
+library("glmnet")
+library("ggplot2")
+library("gridExtra")
+```
+
+Искусственные данные: $x_{ik} \sim N(0,1)$, $z_{ik} \sim N(0,1)$, $\varepsilon_i \sim N(0,1)$, 200 наблюдений:
+
+\[
+y_i = 2+ 3x_{i1} - 2x_{i2}+\varepsilon_i
+\]
+
+```{r, include=FALSE}
+n <- 200
+set.seed(42)
+df <- data_frame(x1 = rnorm(n), x2=rnorm(n), z1=rnorm(n), z2=rnorm(n), eps=rnorm(n),
+                 y=2+3*x1-2*x2+eps)
+X <- model.matrix(~0+x1+x2+z1+z2,data=df)
+y <- df$y
+lambdas <- seq(50,0,by=-0.1)
+model <- glmnet(X,y,alpha=0, lambda = lambdas)
+```
+
+С помощью LASSO оцениваем регрессию $y_i$ на $x_{i1}$, $x_{i2}$, $z_{i1}$, $z_{i2}$ при разных лямбда
+```{r}
+cv.fit <- cv.glmnet(X,y, lambda = lambdas)
+```
 
 
-## Если понравилось
+
+## Результаты для разных штрафных коэффициентов
+
+тут табличка
+
+## Кросс-валидация выбирает классический МНК
+
+```{r}
+cv.fit$lambda.min
+coef(cv.fit,s="lambda.min")
+```
+
+## Зависимость $RSS$ и $dRSS/d\lambda$ от $\lambda$ 
+
+```{r, echo=FALSE}
+#cv.fit$lambda.1se
+#coef(cv.fit,s="lambda.1se")
+
+preds <- predict(model,newx=X)
+yy <- matrix(rep(y, times=length(lambdas)), nrow=length(y))
+res_sq <- (yy-preds)^2
+all_rss <- apply(res_sq,2,sum)
+
+
+
+p1 <- qplot(lambdas, all_rss,xlab="Lambda",ylab="RSS")
+drss <- diff(rev(all_rss))
+lambdas_inc <- rev(lambdas)[-1]
+p2 <- qplot(lambdas_inc,drss,xlab="Lambda",ylab="delta RSS")
+
+grid.arrange(p1, p2, ncol=2)
+```
+
+
+## Оценка лямбда максимизацией $dRSS/d\lambda$
+
+```{r}
+lambda.mdr <- lambdas_inc[drss==max(drss)]
+lambda.mdr
+coef(cv.fit, s=lambda.mdr)
+```
+
+* Потери по сравнению с "идеальным" решением
+
+тут привести потери по ESS или R2
+
+
+
+## Свойства метода
+
+* Метод зависит от выбора целевого показателя. 
+
+Например, вместо суммы квадратов остатков можно взять сумму квадратов модулей.
+
+* У функции $dRSS/d\lambda$ может быть несколько локальных максимумов 
+
 
 Эти слады доступны по ссылке [goo.gl/GFMeG3](https://github.com/bdemeshev/max_drss)
 
