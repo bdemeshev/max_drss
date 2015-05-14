@@ -3,9 +3,11 @@ title: "Выбор сложности модели через максимиза
 author: "Борис Демешев"
 date: "14 мая 2015"
 output:
-  slidy_presentation: default
   ioslides_presentation:
     keep_md: yes
+  beamer_presentation:
+    keep_tex: yes
+  slidy_presentation: default
 lang: russian
 ---
 
@@ -98,6 +100,7 @@ library("dplyr")
 library("glmnet")
 library("ggplot2")
 library("gridExtra")
+library("pander")
 ```
 
 Искусственные данные: $x_{ik} \sim N(0,1)$, $z_{ik} \sim N(0,1)$, $\varepsilon_i \sim N(0,1)$, 200 наблюдений:
@@ -123,10 +126,17 @@ cv.fit <- cv.glmnet(X,y, lambda = lambdas)
 ```
 
 
-
 ## Результаты для разных штрафных коэффициентов
 
-тут табличка
+```{r, results="asis", echo=FALSE}
+coefs <- data.frame(as.matrix(coef(cv.fit, s=c(0,0.5,1,2,10))))
+coefs <- data.frame(names=rownames(coefs), coefs)
+rownames(coefs) <- NULL
+# coefs <- rbind(c(0,0.5,1,2,10),coefs)
+# rownames(coefs)[1] <- "lambda"
+colnames(coefs) <- c("Лямбда:","0 (МНК)","0.5","1","2","10")
+pander(coefs, digits=3)
+```
 
 ## Кросс-валидация выбирает классический МНК
 
@@ -165,9 +175,29 @@ lambda.mdr
 coef(cv.fit, s=lambda.mdr)
 ```
 
-* Потери по сравнению с "идеальным" решением
+## Потери по сравнению с "идеальным" решением
 
-тут привести потери по ESS или R2
+
+```{r, results="asis", echo=FALSE}
+preds2 <- cbind(2+3*df$x1-2*df$x2, predict(model,newx=X,s=c(cv.fit$lambda.min, lambda.mdr)),df$y)
+
+pdf <- data.frame(preds2)
+colnames(pdf) <- c("y_b","y_cv","y_mdr","y")
+
+tss <- var(pdf$y)*(length(pdf$y) - 1)
+rss_b <- sum((pdf$y_b-pdf$y)^2)
+rss_cv <- sum((pdf$y_cv-pdf$y)^2)
+rss_mdr <- sum((pdf$y_mdr-pdf$y)^2)
+
+
+losses <- data_frame(model=c("Идеальная","Кросс-валидация", "Максимум производной"), 
+                     lambda=c(NA,cv.fit$lambda.min, lambda.mdr),
+                     RSS_TSS=c(rss_b/tss,rss_cv/tss,rss_mdr/tss), 
+                     scorr2=c(cor(pdf$y_b, pdf$y)^2, cor(pdf$y_cv, pdf$y)^2, cor(pdf$y_mdr, pdf$y)^2 ),
+                     n_coefs=c(2,4,2))
+colnames(losses) <- c("Модель","Лямбда","RSS/TSS", "sCorr^2","Параметры")
+pander(losses)
+```
 
 
 
